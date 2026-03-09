@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { MAX_CIPHERTEXT_LENGTH } from "@/lib/constants";
 import { createSecret, consumeSecret } from "@/lib/store";
 
 const VALID_TTLS = new Set([3600, 86400, 604800]);
@@ -17,8 +18,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Ogiltig payload." }, { status: 400 });
   }
 
-  if (body.ciphertext.length < 16 || body.ciphertext.length > 100000) {
-    return NextResponse.json({ error: "Meddelandet ar for stort eller tomt." }, { status: 400 });
+  if (body.ciphertext.length < 16 || body.ciphertext.length > MAX_CIPHERTEXT_LENGTH) {
+    return NextResponse.json({ error: "Meddelandet är för stort eller tomt." }, { status: 400 });
   }
 
   const result = await createSecret({

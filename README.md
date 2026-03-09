@@ -1,14 +1,14 @@
 # Message-Encrypt
 
-Saker delning av engangsmeddelanden byggd med Next.js.
+Säker delning av engångsmeddelanden byggd med Next.js.
 
 ## Funktioner
 
-- klientsidekryptering i webblasaren
-- engangslankar som forbrukas vid forsta oppning
+- klientsidekryptering i webbläsaren
+- engångslänkar som förbrukas vid första öppning
 - tidsstyrd gallring: 1 timme, 1 dag, 1 vecka
 - Vercel-kompatibel deployment
-- Redis-stod via Upstash for produktion
+- Redis-stöd via Upstash för produktion
 
 ## Utveckling
 
@@ -17,6 +17,6 @@ npm install
 npm run dev
 ```
 
-## Miljovariabler
+## Miljövariabler
 
 Se `.env.example`.

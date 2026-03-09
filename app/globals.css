@@ -69,6 +69,15 @@ button { cursor: pointer; }
   color: var(--muted);
   font-size: 0.96rem;
 }
+.top-action-btn {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+}
+.top-action-btn.active {
+  color: var(--text);
+}
 .main-column { padding: 28px 0 64px; }
 .hero-card, .info-card, .result-card {
   background: linear-gradient(180deg, rgba(41, 53, 75, 0.94), rgba(34, 45, 63, 0.97));
@@ -94,6 +103,33 @@ button { cursor: pointer; }
 .secret-input:focus, .passphrase-input:focus {
   border-color: rgba(59, 199, 191, 0.55);
   box-shadow: 0 0 0 4px rgba(59, 199, 191, 0.12);
+}
+.upload-dropzone {
+  display: grid;
+  place-items: center;
+  gap: 10px;
+  min-height: 170px;
+  border-radius: 18px;
+  border: 2px dashed rgba(142, 167, 199, 0.14);
+  background: rgba(26, 36, 51, 0.34);
+  color: var(--muted);
+  text-align: center;
+  padding: 28px 22px;
+  cursor: pointer;
+}
+.upload-dropzone strong {
+  color: var(--text);
+  font-size: 1.06rem;
+}
+.upload-icon {
+  color: #89a0b8;
+}
+.upload-file-meta {
+  color: #b8c8d5;
+  font-weight: 600;
+}
+.file-input {
+  display: none;
 }
 .options-row { margin-top: 24px; display: flex; flex-wrap: wrap; gap: 14px; }
 .option-pill { position: relative; }
@@ -257,7 +293,33 @@ button { cursor: pointer; }
   border: 1px solid rgba(240, 137, 125, 0.2);
   color: #ffcabf;
 }
+.file-result-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(142, 167, 199, 0.15);
+  background: rgba(22, 31, 44, 0.72);
+  padding: 18px;
+}
+.file-result-meta {
+  margin-top: 6px;
+  color: var(--muted);
+}
+.file-download-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
 @media (max-width: 980px) { .feature-grid { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 720px) {
+  .file-result-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
 @media (max-width: 720px) {
   .topbar-inner, .main-column, .read-shell { width: min(100vw - 24px, 100%); }
   .hero-card, .result-card, .read-card, .info-card { padding: 22px; }

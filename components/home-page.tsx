@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { CheckCircle2, Download, Link2, LockKeyhole, RefreshCcw, Shield, Trash2 } from "lucide-react";
-import { TTL_OPTIONS } from "@/lib/constants";
+import { ChangeEvent, DragEvent, useMemo, useRef, useState } from "react";
+import { CheckCircle2, Download, Link2, LockKeyhole, RefreshCcw, Shield, Trash2, Upload } from "lucide-react";
+import { MAX_FILE_SIZE_BYTES, TTL_OPTIONS } from "@/lib/constants";
 import { createPassphrase, encryptSecret } from "@/lib/crypto";
 
 const featureCards = [
@@ -10,42 +10,45 @@ const featureCards = [
     icon: Shield,
     iconClass: "icon-green",
     title: "End-to-end-kryptering",
-    text: "Kryptering och dekryptering sker lokalt i webblasaren. Nyckeln skickas aldrig till servern."
+    text: "Kryptering och dekryptering sker lokalt i webbläsaren. Nyckeln skickas aldrig till servern."
   },
   {
     icon: Trash2,
     iconClass: "icon-red",
-    title: "Självförstoring",
-    text: "Meddelandet tas bort automatiskt efter vald livslangd eller direkt efter forsta oppning."
+    title: "Självförstöring",
+    text: "Meddelandet tas bort automatiskt efter vald livslängd eller direkt efter första öppning."
   },
   {
     icon: Download,
     iconClass: "icon-cyan",
-    title: "Endast en oppning",
-    text: "Varje lank fungerar exakt en gang. Efter det finns inget kvar att hamta."
+    title: "Endast en öppning",
+    text: "Varje länk fungerar exakt en gång. Efter det finns inget kvar att hämta."
   },
   {
     icon: Link2,
     iconClass: "icon-cyan",
     title: "Enkel delning",
-    text: "Du skickar bara en kort lank. Krypteringsnyckeln ligger i fragmentdelen och stannar i webblasaren."
+    text: "Du skickar bara en kort länk. Krypteringsnyckeln ligger i fragmentdelen och stannar i webbläsaren."
   },
   {
     icon: CheckCircle2,
     iconClass: "icon-gold",
-    title: "Inga konton behovs",
-    text: "Inga konton, inga profiler och inga onodiga metadatafalt for sjalva hemligheten."
+    title: "Inga konton behövs",
+    text: "Inga konton, inga profiler och inga onödiga metadatafält för själva hemligheten."
   },
   {
     icon: RefreshCcw,
     iconClass: "icon-orange",
     title: "Stateless leverans",
-    text: "Servern lagrar bara krypterad text och engangstoken till dess att posten forbrukas."
+    text: "Servern lagrar bara krypterad text och engångstoken till dess att posten förbrukas."
   }
 ];
 
 export function HomePage() {
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [mode, setMode] = useState<"text" | "file">("text");
   const [message, setMessage] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [ttl, setTtl] = useState<number>(3600);
   const [status, setStatus] = useState("");
   const [statusType, setStatusType] = useState<"idle" | "error" | "success">("idle");
@@ -57,21 +60,72 @@ export function HomePage() {
     return `${result.shortUrl}\n\nDekrypteringsnyckel: ${result.passphrase}`;
   }, [result]);
 
-  async function handleEncrypt() {
-    const trimmed = message.trim();
-    if (!trimmed) {
+  function formatFileSize(size: number) {
+    if (size < 1024) return `${size} B`;
+    if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+    return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  function applyFile(file: File | null) {
+    if (!file) return;
+
+    if (file.size > MAX_FILE_SIZE_BYTES) {
       setStatusType("error");
-      setStatus("Skriv ett meddelande innan du krypterar.");
+      setStatus(`Filen är för stor. Max storlek är ${formatFileSize(MAX_FILE_SIZE_BYTES)}.`);
       return;
     }
 
+    setSelectedFile(file);
+    setStatusType("idle");
+    setStatus("");
+    setResult(null);
+  }
+
+  function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
+    applyFile(event.target.files?.[0] ?? null);
+  }
+
+  function handleDrop(event: DragEvent<HTMLLabelElement>) {
+    event.preventDefault();
+    applyFile(event.dataTransfer.files?.[0] ?? null);
+  }
+
+  async function createEncryptedPayload(passphrase: string) {
+    if (mode === "file") {
+      if (!selectedFile) {
+        throw new Error("Välj en fil innan du laddar upp.");
+      }
+
+      const bytes = new Uint8Array(await selectedFile.arrayBuffer());
+      const base64Data = btoa(String.fromCharCode(...bytes));
+      return encryptSecret(JSON.stringify({
+        kind: "file",
+        name: selectedFile.name,
+        mimeType: selectedFile.type || "application/octet-stream",
+        size: selectedFile.size,
+        data: base64Data
+      }), passphrase);
+    }
+
+    const trimmed = message.trim();
+    if (!trimmed) {
+      throw new Error("Skriv ett meddelande innan du krypterar.");
+    }
+
+    return encryptSecret(JSON.stringify({
+      kind: "text",
+      message: trimmed
+    }), passphrase);
+  }
+
+  async function handleEncrypt() {
     setLoading(true);
     setStatusType("idle");
     setStatus("");
 
     try {
       const passphrase = createPassphrase();
-      const encrypted = await encryptSecret(trimmed, passphrase);
+      const encrypted = await createEncryptedPayload(passphrase);
 
       const response = await fetch("/api/secret", {
         method: "POST",
@@ -84,18 +138,19 @@ export function HomePage() {
 
       const payload = await response.json();
       if (!response.ok) {
-        throw new Error(payload.error || "Kunde inte skapa lank.");
+        throw new Error(payload.error || "Kunde inte skapa länk.");
       }
 
       const shortUrl = `${window.location.origin}/s/${payload.id}#${payload.token}`;
       const fullUrl = `${shortUrl}.${passphrase}`;
       setResult({ fullUrl, shortUrl, passphrase, expiresAt: payload.expiresAt });
       setStatusType("success");
-      setStatus("Lanken ar skapad. Nyckeln finns bara hos mottagaren om du delar den.");
+      setStatus(mode === "file" ? "Filen är uppladdad och krypterad." : "Länken är skapad. Nyckeln finns bara hos mottagaren om du delar den.");
       setMessage("");
+      setSelectedFile(null);
     } catch (error) {
       setStatusType("error");
-      setStatus(error instanceof Error ? error.message : "Nagot gick fel.");
+      setStatus(error instanceof Error ? error.message : "Något gick fel.");
     } finally {
       setLoading(false);
     }
@@ -103,6 +158,7 @@ export function HomePage() {
 
   function resetForm() {
     setMessage("");
+    setSelectedFile(null);
     setResult(null);
     setStatus("");
     setStatusType("idle");
@@ -128,9 +184,10 @@ export function HomePage() {
             <span>MessageEncrypt</span>
           </div>
           <div className="top-actions">
-            <span>Ladda upp</span>
+            <button className={`top-action-btn ${mode === "file" ? "active" : ""}`} type="button" onClick={() => setMode("file")}>Ladda upp</button>
+            <button className={`top-action-btn ${mode === "text" ? "active" : ""}`} type="button" onClick={() => setMode("text")}>Meddelande</button>
             <span>SV</span>
-            <span>Saker delning</span>
+            <span>Säker delning</span>
           </div>
         </div>
       </header>
@@ -138,17 +195,46 @@ export function HomePage() {
       <main className="main-column">
         <section className="hero-grid">
           <article className="hero-card">
-            <h1>Kryptera meddelande</h1>
-            <label className="field-label" htmlFor="message">Ditt meddelande</label>
-            <textarea
-              id="message"
-              className="secret-input"
-              placeholder="Ange ditt meddelande..."
-              value={message}
-              onChange={(event) => setMessage(event.target.value)}
-              spellCheck={false}
-              autoComplete="off"
-            />
+            <h1>{mode === "file" ? "Ladda upp fil" : "Kryptera meddelande"}</h1>
+            {mode === "file" ? (
+              <>
+                <label
+                  className="upload-dropzone"
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={handleDrop}
+                >
+                  <input
+                    ref={fileInputRef}
+                    className="file-input"
+                    type="file"
+                    onChange={handleFileChange}
+                  />
+                  <span className="upload-icon"><Upload size={38} /></span>
+                  <strong>Dra och släpp eller klicka för att välja en fil</strong>
+                  <span>Filuppladdning är utformad för små filer som nycklar, certifikat och dokument.</span>
+                  {selectedFile ? (
+                    <span className="upload-file-meta">
+                      Vald fil: {selectedFile.name} ({formatFileSize(selectedFile.size)})
+                    </span>
+                  ) : (
+                    <span className="upload-file-meta">Max storlek: {formatFileSize(MAX_FILE_SIZE_BYTES)}</span>
+                  )}
+                </label>
+              </>
+            ) : (
+              <>
+                <label className="field-label" htmlFor="message">Ditt meddelande</label>
+                <textarea
+                  id="message"
+                  className="secret-input"
+                  placeholder="Ange ditt meddelande..."
+                  value={message}
+                  onChange={(event) => setMessage(event.target.value)}
+                  spellCheck={false}
+                  autoComplete="off"
+                />
+              </>
+            )}
 
             <div className="options-row" role="radiogroup" aria-label="Radera automatiskt efter">
               {TTL_OPTIONS.map((option) => (
@@ -170,8 +256,8 @@ export function HomePage() {
             </div>
 
             <button className="cta" onClick={handleEncrypt} disabled={loading}>
-              <LockKeyhole size={18} />
-              {loading ? "Krypterar..." : "Kryptera meddelande"}
+              {mode === "file" ? <Upload size={18} /> : <LockKeyhole size={18} />}
+              {loading ? (mode === "file" ? "Laddar upp..." : "Krypterar...") : (mode === "file" ? "Ladda upp fil" : "Kryptera meddelande")}
             </button>
 
             <p className={`status ${statusType === "error" ? "error" : statusType === "success" ? "success" : ""}`}>{status}</p>
@@ -180,39 +266,39 @@ export function HomePage() {
           {result ? (
             <article className="result-card">
               <h1>Meddelandet sparat</h1>
-              <p>Ditt meddelande har krypterats och lagrats. Dela dessa lankar for att ge atkomst.</p>
+              <p>{mode === "file" ? "Din fil har krypterats och lagrats. Dela dessa länkar för att ge åtkomst." : "Ditt meddelande har krypterats och lagrats. Dela dessa länkar för att ge åtkomst."}</p>
 
               <div className="notice-banner">
-                <div className="notice-title">Kom ihag</div>
+                <div className="notice-title">Kom ihåg</div>
                 <div className="notice-text">
-                  Meddelandet kan bara laddas ner en gang. Oppna inte lanken sjalv. For extra sakerhet, skicka dekrypteringsnyckeln i en separat kanal.
+                  Meddelandet kan bara laddas ner en gång. Öppna inte länken själv. För extra säkerhet, skicka dekrypteringsnyckeln i en separat kanal.
                 </div>
               </div>
 
               <div className="result-stack">
                 <section className="share-card">
-                  <h3>Direktlank</h3>
-                  <p>Dela denna lank for direkt atkomst till meddelandet</p>
+                  <h3>Direktlänk</h3>
+                  <p>Dela denna länk för direkt åtkomst till meddelandet</p>
                   <div className="share-row">
-                    <button className="copy-chip" onClick={() => copyToClipboard(result.fullUrl, "Direktlanken ar kopierad.")}>Kopiera</button>
+                    <button className="copy-chip" onClick={() => copyToClipboard(result.fullUrl, "Direktlänken är kopierad.")}>Kopiera</button>
                     <a className="result-link" href={result.fullUrl}>{result.fullUrl}</a>
                   </div>
                 </section>
 
                 <section className="share-card">
-                  <h3>Kort lank</h3>
-                  <p>Kraver att dekrypteringsnyckeln delas separat</p>
+                  <h3>Kort länk</h3>
+                  <p>Kräver att dekrypteringsnyckeln delas separat</p>
                   <div className="share-row">
-                    <button className="copy-chip" onClick={() => copyToClipboard(result.shortUrl, "Korta lanken ar kopierad.")}>Kopiera</button>
+                    <button className="copy-chip" onClick={() => copyToClipboard(result.shortUrl, "Korta länken är kopierad.")}>Kopiera</button>
                     <a className="result-link" href={result.shortUrl}>{result.shortUrl}</a>
                   </div>
                 </section>
 
                 <section className="share-card">
                   <h3>Dekrypteringsnyckel</h3>
-                  <p>Kravs for att dekryptera meddelandet med den korta lanken</p>
+                  <p>Krävs för att dekryptera meddelandet med den korta länken</p>
                   <div className="share-row">
-                    <button className="copy-chip" onClick={() => copyToClipboard(result.passphrase, "Nyckeln ar kopierad.")}>Kopiera</button>
+                    <button className="copy-chip" onClick={() => copyToClipboard(result.passphrase, "Nyckeln är kopierad.")}>Kopiera</button>
                     <div className="result-link">{result.passphrase}</div>
                   </div>
                 </section>
@@ -221,7 +307,7 @@ export function HomePage() {
               <div className="result-footer">
                 <span className="result-note">Giltig till: {new Date(result.expiresAt).toLocaleString("sv-SE")}</span>
                 <div className="result-actions">
-                  <button className="secondary-btn" onClick={() => copyToClipboard(shareText, "Kort lank och nyckel ar kopierade.")}>Kopiera kort länk + nyckel</button>
+                  <button className="secondary-btn" onClick={() => copyToClipboard(shareText, "Kort länk och nyckel är kopierade.")}>Kopiera kort länk + nyckel</button>
                   <button className="outline-btn" onClick={resetForm}>Skapa ett nytt meddelande</button>
                 </div>
               </div>
@@ -230,10 +316,10 @@ export function HomePage() {
         </section>
 
         <section className="hero-copy">
-          <h2>Dela meddelanden sakert med enkelhet</h2>
+          <h2>Dela meddelanden säkert med enkelhet</h2>
           <p>
-            Meddelandet krypteras i din webblasare innan det skickas. Servern far aldrig dekrypteringsnyckeln,
-            och posten forsvinner efter forsta oppning eller nar tiden gar ut.
+            Meddelandet krypteras i din webbläsare innan det skickas. Servern får aldrig dekrypteringsnyckeln,
+            och posten försvinner efter första öppning eller när tiden går ut.
           </p>
         </section>
 

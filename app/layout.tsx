@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "MessageEncrypt",
-  description: "Saker delning av krypterade engangsmeddelanden"
+  description: "Säker delning av krypterade engångsmeddelanden"
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { Download } from "lucide-react";
 import { decryptSecret } from "@/lib/crypto";
 
 function readSecretPartsFromHash() {
@@ -19,10 +20,43 @@ function readSecretPartsFromHash() {
 export function ReadSecret({ id }: { id: string }) {
   const [passphrase, setPassphrase] = useState("");
   const [message, setMessage] = useState<string | null>(null);
+  const [filePayload, setFilePayload] = useState<{ name: string; mimeType: string; size: number; data: string } | null>(null);
   const [status, setStatus] = useState("");
   const [statusType, setStatusType] = useState<"idle" | "error" | "success">("idle");
   const [loading, setLoading] = useState(false);
   const [consumed, setConsumed] = useState(false);
+  const downloadUrl = useMemo(() => {
+    if (!filePayload) return null;
+    return `data:${filePayload.mimeType};base64,${filePayload.data}`;
+  }, [filePayload]);
+
+  function parseDecryptedPayload(decrypted: string) {
+    try {
+      const parsed = JSON.parse(decrypted);
+      if (parsed && parsed.kind === "text" && typeof parsed.message === "string") {
+        return { kind: "text" as const, message: parsed.message };
+      }
+
+      if (
+        parsed &&
+        parsed.kind === "file" &&
+        typeof parsed.name === "string" &&
+        typeof parsed.mimeType === "string" &&
+        typeof parsed.size === "number" &&
+        typeof parsed.data === "string"
+      ) {
+        return {
+          kind: "file" as const,
+          name: parsed.name,
+          mimeType: parsed.mimeType,
+          size: parsed.size,
+          data: parsed.data
+        };
+      }
+    } catch {}
+
+    return { kind: "legacy-text" as const, message: decrypted };
+  }
 
   async function openSecret() {
     const secretParts = readSecretPartsFromHash();
@@ -31,13 +65,13 @@ export function ReadSecret({ id }: { id: string }) {
 
     if (!currentToken) {
       setStatusType("error");
-      setStatus("Engangstoken saknas i lanken. Anvand hela original-lanken.");
+      setStatus("Engångstoken saknas i länken. Använd hela originallänken.");
       return;
     }
 
     if (!currentPassphrase) {
       setStatusType("error");
-      setStatus("Dekrypteringsnyckel saknas i lankens fragment eller faltet nedan.");
+      setStatus("Dekrypteringsnyckel saknas i länkens fragment eller fältet nedan.");
       return;
     }
 
@@ -57,18 +91,25 @@ export function ReadSecret({ id }: { id: string }) {
 
       const payload = await response.json();
       if (!response.ok) {
-        throw new Error(payload.error || "Lanken kunde inte oppnas.");
+        throw new Error(payload.error || "Länken kunde inte öppnas.");
       }
 
       const decrypted = await decryptSecret(payload, currentPassphrase);
-      setMessage(decrypted);
+      const parsed = parseDecryptedPayload(decrypted);
+      if (parsed.kind === "file") {
+        setFilePayload(parsed);
+        setMessage(null);
+      } else {
+        setMessage(parsed.message);
+        setFilePayload(null);
+      }
       setConsumed(true);
       setStatusType("success");
-      setStatus("Meddelandet har dekrypterats. Lanken ar nu forbrukad.");
+      setStatus(parsed.kind === "file" ? "Filen har dekrypterats. Länken är nu förbrukad." : "Meddelandet har dekrypterats. Länken är nu förbrukad.");
       window.history.replaceState(null, "", window.location.pathname);
     } catch (error) {
       setStatusType("error");
-      setStatus(error instanceof Error ? error.message : "Nagot gick fel.");
+      setStatus(error instanceof Error ? error.message : "Något gick fel.");
     } finally {
       setLoading(false);
     }
@@ -76,10 +117,10 @@ export function ReadSecret({ id }: { id: string }) {
 
   return (
     <div className="read-card">
-      <h1>Oppna hemligt meddelande</h1>
+      <h1>Öppna hemligt meddelande</h1>
       <p>
-        Denna lank kan anvandas exakt en gang. Om den redan har oppnats, eller om tidsgransen passerats,
-        finns inget meddelande kvar att hamta.
+        Denna länk kan användas exakt en gång. Om den redan har öppnats, eller om tidsgränsen passerats,
+        finns inget meddelande kvar att hämta.
       </p>
 
       <div className="passphrase-row">
@@ -92,13 +133,13 @@ export function ReadSecret({ id }: { id: string }) {
           spellCheck={false}
           value={passphrase}
           onChange={(event) => setPassphrase(event.target.value)}
-          placeholder="Klistra in nyckeln har om den inte finns i lanken"
+          placeholder="Klistra in nyckeln här om den inte finns i länken"
         />
       </div>
 
       <div className="result-actions" style={{ marginTop: 20 }}>
         <button className="cta" onClick={openSecret} disabled={loading || consumed}>
-          {loading ? "Oppnar..." : consumed ? "Lanken ar forbrukad" : "Oppna meddelande"}
+          {loading ? "Öppnar..." : consumed ? "Länken är förbrukad" : "Öppna meddelande"}
         </button>
       </div>
 
@@ -111,8 +152,24 @@ export function ReadSecret({ id }: { id: string }) {
         </div>
       ) : null}
 
+      {filePayload && downloadUrl ? (
+        <div className="secret-output">
+          <label className="field-label">Dekrypterad fil</label>
+          <div className="file-result-card">
+            <div>
+              <strong>{filePayload.name}</strong>
+              <div className="file-result-meta">{filePayload.mimeType} • {Math.round(filePayload.size / 1024) || 1} KB</div>
+            </div>
+            <a className="secondary-btn file-download-btn" href={downloadUrl} download={filePayload.name}>
+              <Download size={16} />
+              Ladda ner fil
+            </a>
+          </div>
+        </div>
+      ) : null}
+
       <div className="warning-box">
-        Av sakerhetsskal raderas posten pa servern innan innehallet visas. Om du anvander fel nyckel gar posten inte att aterstalla.
+        Av säkerhetsskäl raderas posten på servern innan innehållet visas. Om du använder fel nyckel går posten inte att återställa.
       </div>
     </div>
   );
