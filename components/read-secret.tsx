@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Download } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Copy, Download, Eye, Info, LockKeyhole, QrCode } from "lucide-react";
 import { decryptSecret } from "@/lib/crypto";
 
 function readSecretPartsFromHash() {
@@ -18,7 +18,6 @@ function readSecretPartsFromHash() {
 }
 
 export function ReadSecret({ id }: { id: string }) {
-  const attemptedAutoOpenRef = useRef(false);
   const [passphrase, setPassphrase] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [filePayload, setFilePayload] = useState<{ name: string; mimeType: string; size: number; data: string } | null>(null);
@@ -57,6 +56,19 @@ export function ReadSecret({ id }: { id: string }) {
     } catch {}
 
     return { kind: "legacy-text" as const, message: decrypted };
+  }
+
+  async function copyMessage() {
+    if (!message) return;
+
+    try {
+      await navigator.clipboard.writeText(message);
+      setStatusType("success");
+      setStatus("Meddelandet är kopierat.");
+    } catch {
+      setStatusType("error");
+      setStatus("Kunde inte kopiera meddelandet.");
+    }
   }
 
   async function openSecretInternal(options?: { passphrase?: string; token?: string }) {
@@ -120,82 +132,101 @@ export function ReadSecret({ id }: { id: string }) {
     void openSecretInternal();
   }
 
-  useEffect(() => {
-    if (attemptedAutoOpenRef.current || consumed || loading) {
-      return;
-    }
-
-    const secretParts = readSecretPartsFromHash();
-    if (!secretParts.token || !secretParts.passphrase) {
-      return;
-    }
-
-    attemptedAutoOpenRef.current = true;
-    void openSecretInternal(secretParts);
-  }, [consumed, loading]);
+  const hasEmbeddedPassphrase = Boolean(readSecretPartsFromHash().passphrase);
 
   return (
     <div className="read-card">
-      <h1>Öppna hemligt meddelande</h1>
-      <p>
-        Denna länk kan användas exakt en gång. Om den redan har öppnats, eller om tidsgränsen passerats,
-        finns inget meddelande kvar att hämta.
-      </p>
-
       {!consumed ? (
-        <p className="status">
-          Direktlänkar med inbyggd nyckel öppnas automatiskt. Korta länkar kräver att nyckeln klistras in här.
-        </p>
-      ) : null}
-
-      <div className="passphrase-row">
-        <label className="field-label" htmlFor="passphrase">Dekrypteringsnyckel</label>
-        <input
-          id="passphrase"
-          className="passphrase-input"
-          type="text"
-          autoComplete="off"
-          spellCheck={false}
-          value={passphrase}
-          onChange={(event) => setPassphrase(event.target.value)}
-          placeholder="Klistra in nyckeln här om den inte finns i länken"
-        />
-      </div>
-
-      <div className="result-actions" style={{ marginTop: 20 }}>
-        <button className="cta" onClick={openSecret} disabled={loading || consumed}>
-          {loading ? "Öppnar..." : consumed ? "Länken är förbrukad" : "Öppna meddelande"}
-        </button>
-      </div>
-
-      <p className={`status ${statusType === "error" ? "error" : statusType === "success" ? "success" : ""}`}>{status}</p>
-
-      {message ? (
-        <div className="secret-output">
-          <label className="field-label">Dekrypterat meddelande</label>
-          <pre>{message}</pre>
-        </div>
-      ) : null}
-
-      {filePayload && downloadUrl ? (
-        <div className="secret-output">
-          <label className="field-label">Dekrypterad fil</label>
-          <div className="file-result-card">
+        <div className="read-stage">
+          <div className="read-headline">
+            <span className="read-headline-mark"><LockKeyhole size={22} /></span>
             <div>
-              <strong>{filePayload.name}</strong>
-              <div className="file-result-meta">{filePayload.mimeType} • {Math.round(filePayload.size / 1024) || 1} KB</div>
+              <h1>Säkert meddelande</h1>
+              <p>Du har fått ett säkert meddelande som bara kan ses en gång.</p>
             </div>
-            <a className="secondary-btn file-download-btn" href={downloadUrl} download={filePayload.name}>
-              <Download size={16} />
-              Ladda ner fil
-            </a>
+          </div>
+
+          <div className="read-warning-banner">
+            <span className="read-warning-icon"><Info size={18} /></span>
+            <div>
+              <div className="read-warning-title">Viktigt</div>
+              <div className="read-warning-text">
+                Detta meddelande kommer att självförstöras efter visning. När det öppnats kan det inte ses igen.
+                Var säker på att du är redo att visa det nu.
+              </div>
+            </div>
+          </div>
+
+          {!hasEmbeddedPassphrase ? (
+            <div className="passphrase-row">
+              <label className="field-label" htmlFor="passphrase">Dekrypteringsnyckel</label>
+              <input
+                id="passphrase"
+                className="passphrase-input"
+                type="text"
+                autoComplete="off"
+                spellCheck={false}
+                value={passphrase}
+                onChange={(event) => setPassphrase(event.target.value)}
+                placeholder="Klistra in nyckeln här om den inte finns i länken"
+              />
+            </div>
+          ) : null}
+
+          <div className="read-primary-action">
+            <button className="cta reveal-btn" onClick={openSecret} disabled={loading}>
+              <Eye size={18} />
+              {loading ? "Öppnar..." : "Visa meddelande"}
+            </button>
           </div>
         </div>
-      ) : null}
+      ) : (
+        <div className="read-stage">
+          <div className="read-headline">
+            <span className="read-headline-mark"><LockKeyhole size={22} /></span>
+            <div>
+              <h1>{filePayload ? "Filen har dekrypterats" : "Meddelandet har dekrypterats"}</h1>
+              <p>{filePayload ? "Filen kan inte öppnas igen. Spara den nu om du behöver den." : "Ditt meddelande kommer inte att vara tillgängligt igen. Se till att spara det nu."}</p>
+            </div>
+          </div>
 
-      <div className="warning-box">
-        Av säkerhetsskäl raderas posten på servern innan innehållet visas. Om du använder fel nyckel går posten inte att återställa.
-      </div>
+          {message ? (
+            <div className="secret-output revealed-secret">
+              <pre>{message}</pre>
+            </div>
+          ) : null}
+
+          {filePayload && downloadUrl ? (
+            <div className="secret-output">
+              <div className="file-result-card">
+                <div>
+                  <strong>{filePayload.name}</strong>
+                  <div className="file-result-meta">{filePayload.mimeType} • {Math.round(filePayload.size / 1024) || 1} KB</div>
+                </div>
+                <a className="secondary-btn file-download-btn" href={downloadUrl} download={filePayload.name}>
+                  <Download size={16} />
+                  Ladda ner fil
+                </a>
+              </div>
+            </div>
+          ) : null}
+
+          <div className="read-result-actions">
+            {message ? (
+              <button className="secondary-btn read-action-btn read-action-primary" onClick={() => void copyMessage()}>
+                <Copy size={16} />
+                Kopiera till urklipp
+              </button>
+            ) : null}
+            <button className="outline-btn read-action-btn" type="button" disabled>
+              <QrCode size={16} />
+              Visa QR-kod
+            </button>
+          </div>
+        </div>
+      )}
+
+      <p className={`status ${statusType === "error" ? "error" : statusType === "success" ? "success" : ""}`}>{status}</p>
     </div>
   );
 }
