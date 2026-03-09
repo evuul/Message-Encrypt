@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Download } from "lucide-react";
 import { decryptSecret } from "@/lib/crypto";
 
@@ -18,6 +18,7 @@ function readSecretPartsFromHash() {
 }
 
 export function ReadSecret({ id }: { id: string }) {
+  const attemptedAutoOpenRef = useRef(false);
   const [passphrase, setPassphrase] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [filePayload, setFilePayload] = useState<{ name: string; mimeType: string; size: number; data: string } | null>(null);
@@ -58,10 +59,10 @@ export function ReadSecret({ id }: { id: string }) {
     return { kind: "legacy-text" as const, message: decrypted };
   }
 
-  async function openSecret() {
+  async function openSecretInternal(options?: { passphrase?: string; token?: string }) {
     const secretParts = readSecretPartsFromHash();
-    const currentPassphrase = passphrase || secretParts.passphrase;
-    const currentToken = secretParts.token;
+    const currentPassphrase = options?.passphrase ?? (passphrase || secretParts.passphrase);
+    const currentToken = options?.token ?? secretParts.token;
 
     if (!currentToken) {
       setStatusType("error");
@@ -115,6 +116,24 @@ export function ReadSecret({ id }: { id: string }) {
     }
   }
 
+  function openSecret() {
+    void openSecretInternal();
+  }
+
+  useEffect(() => {
+    if (attemptedAutoOpenRef.current || consumed || loading) {
+      return;
+    }
+
+    const secretParts = readSecretPartsFromHash();
+    if (!secretParts.token || !secretParts.passphrase) {
+      return;
+    }
+
+    attemptedAutoOpenRef.current = true;
+    void openSecretInternal(secretParts);
+  }, [consumed, loading]);
+
   return (
     <div className="read-card">
       <h1>Öppna hemligt meddelande</h1>
@@ -122,6 +141,12 @@ export function ReadSecret({ id }: { id: string }) {
         Denna länk kan användas exakt en gång. Om den redan har öppnats, eller om tidsgränsen passerats,
         finns inget meddelande kvar att hämta.
       </p>
+
+      {!consumed ? (
+        <p className="status">
+          Direktlänkar med inbyggd nyckel öppnas automatiskt. Korta länkar kräver att nyckeln klistras in här.
+        </p>
+      ) : null}
 
       <div className="passphrase-row">
         <label className="field-label" htmlFor="passphrase">Dekrypteringsnyckel</label>
