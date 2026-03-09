@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { LockKeyhole } from "lucide-react";
 import { ReadSecret } from "@/components/read-secret";
 
@@ -13,10 +12,10 @@ export default async function SecretPage({
     <div className="page-shell">
       <header className="topbar">
         <div className="topbar-inner">
-          <Link className="brand" href="/">
+          <a className="brand" href="/">
             <span className="brand-mark"><LockKeyhole size={18} /></span>
             <span>MessageEncrypt</span>
-          </Link>
+          </a>
         </div>
       </header>
       <main className="read-shell">

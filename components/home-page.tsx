@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { ChangeEvent, DragEvent, useEffect, useMemo, useRef, useState } from "react";
 import QRCode from "qrcode";
 import { CheckCircle2, Download, Link2, LockKeyhole, QrCode, RefreshCcw, Shield, Trash2, Upload, X } from "lucide-react";
@@ -216,10 +215,10 @@ export function HomePage() {
     <div className="page-shell">
       <header className="topbar">
         <div className="topbar-inner">
-          <Link className="brand" href="/">
+          <a className="brand" href="/">
             <span className="brand-mark"><LockKeyhole size={18} /></span>
             <span>MessageEncrypt</span>
-          </Link>
+          </a>
           <div className="top-actions">
             <button className={`top-action-btn ${mode === "file" ? "active" : ""}`} type="button" onClick={() => setMode("file")}>Ladda upp</button>
             <button className={`top-action-btn ${mode === "text" ? "active" : ""}`} type="button" onClick={() => setMode("text")}>Meddelande</button>
