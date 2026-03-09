@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Copy, Download, Eye, Info, LockKeyhole, QrCode } from "lucide-react";
+import { Copy, Download, Eye, Info, LockKeyhole } from "lucide-react";
 import { decryptSecret } from "@/lib/crypto";
 
 function readSecretPartsFromHash() {
@@ -122,7 +122,11 @@ export function ReadSecret({ id }: { id: string }) {
       window.history.replaceState(null, "", window.location.pathname);
     } catch (error) {
       setStatusType("error");
-      setStatus(error instanceof Error ? error.message : "Något gick fel.");
+      if (error instanceof DOMException || (error instanceof Error && /operation|decrypt/i.test(`${error.name} ${error.message}`))) {
+        setStatus("Dekrypteringen misslyckades. Kontrollera att dekrypteringsnyckeln är korrekt. Av säkerhetsskäl kan meddelandet inte återställas efter ett öppningsförsök.");
+      } else {
+        setStatus(error instanceof Error ? error.message : "Något gick fel.");
+      }
     } finally {
       setLoading(false);
     }
@@ -218,10 +222,6 @@ export function ReadSecret({ id }: { id: string }) {
                 Kopiera till urklipp
               </button>
             ) : null}
-            <button className="outline-btn read-action-btn" type="button" disabled>
-              <QrCode size={16} />
-              Visa QR-kod
-            </button>
           </div>
         </div>
       )}

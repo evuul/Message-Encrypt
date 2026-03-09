@@ -1,7 +1,9 @@
 "use client";
 
-import { ChangeEvent, DragEvent, useMemo, useRef, useState } from "react";
-import { CheckCircle2, Download, Link2, LockKeyhole, RefreshCcw, Shield, Trash2, Upload } from "lucide-react";
+import Link from "next/link";
+import { ChangeEvent, DragEvent, useEffect, useMemo, useRef, useState } from "react";
+import QRCode from "qrcode";
+import { CheckCircle2, Download, Link2, LockKeyhole, QrCode, RefreshCcw, Shield, Trash2, Upload, X } from "lucide-react";
 import { MAX_FILE_SIZE_BYTES, TTL_OPTIONS } from "@/lib/constants";
 import { createPassphrase, encryptSecret } from "@/lib/crypto";
 
@@ -54,11 +56,44 @@ export function HomePage() {
   const [statusType, setStatusType] = useState<"idle" | "error" | "success">("idle");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ fullUrl: string; shortUrl: string; passphrase: string; expiresAt: number } | null>(null);
+  const [showQrCode, setShowQrCode] = useState(false);
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState("");
 
   const shareText = useMemo(() => {
     if (!result) return "";
     return `${result.shortUrl}\n\nDekrypteringsnyckel: ${result.passphrase}`;
   }, [result]);
+
+  useEffect(() => {
+    if (!showQrCode || !result?.fullUrl) {
+      setQrCodeDataUrl("");
+      return;
+    }
+
+    let cancelled = false;
+
+    void QRCode.toDataURL(result.fullUrl, {
+      margin: 1,
+      width: 320,
+      color: {
+        dark: "#102013",
+        light: "#0000"
+      }
+    }).then((dataUrl) => {
+      if (!cancelled) {
+        setQrCodeDataUrl(dataUrl);
+      }
+    }).catch(() => {
+      if (!cancelled) {
+        setStatusType("error");
+        setStatus("Kunde inte skapa QR-koden.");
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [result?.fullUrl, showQrCode]);
 
   function formatFileSize(size: number) {
     if (size < 1024) return `${size} B`;
@@ -148,6 +183,7 @@ export function HomePage() {
       setStatus(mode === "file" ? "Filen är uppladdad och krypterad." : "Länken är skapad. Nyckeln finns bara hos mottagaren om du delar den.");
       setMessage("");
       setSelectedFile(null);
+      setShowQrCode(false);
     } catch (error) {
       setStatusType("error");
       setStatus(error instanceof Error ? error.message : "Något gick fel.");
@@ -160,6 +196,7 @@ export function HomePage() {
     setMessage("");
     setSelectedFile(null);
     setResult(null);
+    setShowQrCode(false);
     setStatus("");
     setStatusType("idle");
   }
@@ -179,10 +216,10 @@ export function HomePage() {
     <div className="page-shell">
       <header className="topbar">
         <div className="topbar-inner">
-          <div className="brand">
+          <Link className="brand" href="/">
             <span className="brand-mark"><LockKeyhole size={18} /></span>
             <span>MessageEncrypt</span>
-          </div>
+          </Link>
           <div className="top-actions">
             <button className={`top-action-btn ${mode === "file" ? "active" : ""}`} type="button" onClick={() => setMode("file")}>Ladda upp</button>
             <button className={`top-action-btn ${mode === "text" ? "active" : ""}`} type="button" onClick={() => setMode("text")}>Meddelande</button>
@@ -308,6 +345,10 @@ export function HomePage() {
                 <span className="result-note">Giltig till: {new Date(result.expiresAt).toLocaleString("sv-SE")}</span>
                 <div className="result-actions">
                   <button className="secondary-btn" onClick={() => copyToClipboard(shareText, "Kort länk och nyckel är kopierade.")}>Kopiera kort länk + nyckel</button>
+                  <button className="secondary-btn" onClick={() => setShowQrCode(true)}>
+                    <QrCode size={16} />
+                    Visa QR-kod
+                  </button>
                   <button className="outline-btn" onClick={resetForm}>Skapa ett nytt meddelande</button>
                 </div>
               </div>
@@ -336,6 +377,22 @@ export function HomePage() {
           })}
         </section>
       </main>
+
+      {showQrCode && result ? (
+        <div className="modal-backdrop" onClick={() => setShowQrCode(false)}>
+          <div className="modal-card" onClick={(event) => event.stopPropagation()}>
+            <button className="modal-close" type="button" onClick={() => setShowQrCode(false)} aria-label="Stäng QR-kod">
+              <X size={18} />
+            </button>
+            <h2>QR-kod för direktlänk</h2>
+            <p>Skanna koden för att öppna meddelandet med inbyggd nyckel i samma steg.</p>
+            <div className="qr-preview">
+              {qrCodeDataUrl ? <img src={qrCodeDataUrl} alt="QR-kod för direktlänk" /> : <span>Skapar QR-kod...</span>}
+            </div>
+            <div className="qr-meta">{result.fullUrl}</div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

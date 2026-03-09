@@ -1,5 +1,5 @@
-import { createHash, randomUUID } from "node:crypto";
-import { Redis } from "@upstash/redis";
+import { createHash, randomBytes } from "node:crypto";
+import { getRedis } from "@/lib/redis";
 
 type StoredSecret = {
   ciphertext: string;
@@ -10,6 +10,9 @@ type StoredSecret = {
 };
 
 const localStore = new Map<string, StoredSecret>();
+const ID_ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+const SECRET_ID_LENGTH = 10;
+const SECRET_TOKEN_LENGTH = 22;
 
 function hashToken(token: string) {
   return createHash("sha256").update(token).digest("hex");
@@ -19,23 +22,15 @@ function buildSecretKey(id: string, token: string) {
   return `secret:${id}:${hashToken(token)}`;
 }
 
-function getRedis() {
-  const url =
-    process.env.UPSTASH_REDIS_REST_URL ??
-    process.env.UPSTASH_REDIS_REST_KV_REST_API_URL;
-  const token =
-    process.env.UPSTASH_REDIS_REST_TOKEN ??
-    process.env.UPSTASH_REDIS_REST_KV_REST_API_TOKEN;
+function createRandomString(length: number) {
+  const bytes = randomBytes(length);
+  let value = "";
 
-  if (!url || !token) {
-    return null;
+  for (let index = 0; index < length; index += 1) {
+    value += ID_ALPHABET[bytes[index] % ID_ALPHABET.length];
   }
 
-  return new Redis({
-    url,
-    token,
-    enableTelemetry: false
-  });
+  return value;
 }
 
 function cleanupExpired() {
@@ -53,8 +48,8 @@ export async function createSecret(input: {
   salt: string;
   ttlSeconds: number;
 }) {
-  const id = randomUUID().replaceAll("-", "");
-  const token = randomUUID().replaceAll("-", "") + randomUUID().replaceAll("-", "");
+  const id = createRandomString(SECRET_ID_LENGTH);
+  const token = createRandomString(SECRET_TOKEN_LENGTH);
   const createdAt = Date.now();
   const expiresAt = createdAt + input.ttlSeconds * 1000;
   const record: StoredSecret = {

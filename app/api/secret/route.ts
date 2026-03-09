@@ -1,10 +1,37 @@
 import { NextRequest, NextResponse } from "next/server";
 import { MAX_CIPHERTEXT_LENGTH } from "@/lib/constants";
+import { checkRateLimit } from "@/lib/rate-limit";
 import { createSecret, consumeSecret } from "@/lib/store";
 
 const VALID_TTLS = new Set([3600, 86400, 604800]);
+const CREATE_LIMIT = 20;
+const OPEN_LIMIT = 40;
+const RATE_LIMIT_WINDOW_SECONDS = 60;
+
+function getClientIp(request: NextRequest) {
+  const forwardedFor = request.headers.get("x-forwarded-for");
+  if (forwardedFor) {
+    return forwardedFor.split(",")[0]?.trim() || "unknown";
+  }
+
+  return request.headers.get("x-real-ip") ?? "unknown";
+}
 
 export async function POST(request: NextRequest) {
+  const clientIp = getClientIp(request);
+  const createLimit = await checkRateLimit(
+    `rate:create:${clientIp}`,
+    CREATE_LIMIT,
+    RATE_LIMIT_WINDOW_SECONDS
+  );
+
+  if (!createLimit.allowed) {
+    return NextResponse.json(
+      { error: "För många nya meddelanden på kort tid. Vänta en minut och försök igen." },
+      { status: 429 }
+    );
+  }
+
   const body = await request.json().catch(() => null);
 
   if (
@@ -41,6 +68,20 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  const clientIp = getClientIp(request);
+  const openLimit = await checkRateLimit(
+    `rate:open:${clientIp}`,
+    OPEN_LIMIT,
+    RATE_LIMIT_WINDOW_SECONDS
+  );
+
+  if (!openLimit.allowed) {
+    return NextResponse.json(
+      { error: "För många öppningsförsök på kort tid. Vänta en minut och försök igen." },
+      { status: 429 }
+    );
+  }
+
   const body = await request.json().catch(() => null);
 
   if (!body || typeof body.id !== "string" || typeof body.token !== "string") {
@@ -49,7 +90,10 @@ export async function DELETE(request: NextRequest) {
 
   const secret = await consumeSecret(body.id, body.token);
   if (!secret) {
-    return NextResponse.json({ error: "Not Found" }, { status: 404 });
+    return NextResponse.json(
+      { error: "Länken finns inte längre. Den kan ha öppnats tidigare eller gått ut." },
+      { status: 404 }
+    );
   }
 
   return NextResponse.json(secret, {
