@@ -1,8 +1,7 @@
 "use client";
 
 import { ChangeEvent, DragEvent, useEffect, useMemo, useRef, useState } from "react";
-import QRCode from "qrcode";
-import { CheckCircle2, Download, Link2, LockKeyhole, QrCode, RefreshCcw, Shield, Trash2, Upload, X } from "lucide-react";
+import { CheckCircle2, Download, Link2, LockKeyhole, RefreshCcw, Shield, Trash2, Upload } from "lucide-react";
 import { MAX_FILE_SIZE_BYTES, TTL_OPTIONS } from "@/lib/constants";
 import { createPassphrase, encryptSecret } from "@/lib/crypto";
 
@@ -55,8 +54,6 @@ export function HomePage() {
   const [statusType, setStatusType] = useState<"idle" | "error" | "success">("idle");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ fullUrl: string; shortUrl: string; passphrase: string; expiresAt: number } | null>(null);
-  const [showQrCode, setShowQrCode] = useState(false);
-  const [qrCodeDataUrl, setQrCodeDataUrl] = useState("");
   const [createdSecretCount, setCreatedSecretCount] = useState<number | null>(null);
 
   const shareText = useMemo(() => {
@@ -84,37 +81,6 @@ export function HomePage() {
       cancelled = true;
     };
   }, []);
-
-  useEffect(() => {
-    if (!showQrCode || !result?.fullUrl) {
-      setQrCodeDataUrl("");
-      return;
-    }
-
-    let cancelled = false;
-
-    void QRCode.toDataURL(result.fullUrl, {
-      margin: 1,
-      width: 320,
-      color: {
-        dark: "#102013",
-        light: "#0000"
-      }
-    }).then((dataUrl) => {
-      if (!cancelled) {
-        setQrCodeDataUrl(dataUrl);
-      }
-    }).catch(() => {
-      if (!cancelled) {
-        setStatusType("error");
-        setStatus("Kunde inte skapa QR-koden.");
-      }
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [result?.fullUrl, showQrCode]);
 
   function formatFileSize(size: number) {
     if (size < 1024) return `${size} B`;
@@ -205,7 +171,6 @@ export function HomePage() {
       setStatus(mode === "file" ? "Filen är uppladdad och krypterad." : "Länken är skapad. Nyckeln finns bara hos mottagaren om du delar den.");
       setMessage("");
       setSelectedFile(null);
-      setShowQrCode(false);
     } catch (error) {
       setStatusType("error");
       setStatus(error instanceof Error ? error.message : "Något gick fel.");
@@ -218,7 +183,6 @@ export function HomePage() {
     setMessage("");
     setSelectedFile(null);
     setResult(null);
-    setShowQrCode(false);
     setStatus("");
     setStatusType("idle");
   }
@@ -263,77 +227,8 @@ export function HomePage() {
       </header>
 
       <main className="main-column">
-        <section className="hero-grid">
-          <article className="hero-card">
-            <h1>{mode === "file" ? "Ladda upp fil" : "Kryptera meddelande"}</h1>
-            {mode === "file" ? (
-              <>
-                <label
-                  className="upload-dropzone"
-                  onDragOver={(event) => event.preventDefault()}
-                  onDrop={handleDrop}
-                >
-                  <input
-                    ref={fileInputRef}
-                    className="file-input"
-                    type="file"
-                    onChange={handleFileChange}
-                  />
-                  <span className="upload-icon"><Upload size={38} /></span>
-                  <strong>Dra och släpp eller klicka för att välja en fil</strong>
-                  <span>Filuppladdning är utformad för små filer som nycklar, certifikat och dokument.</span>
-                  {selectedFile ? (
-                    <span className="upload-file-meta">
-                      Vald fil: {selectedFile.name} ({formatFileSize(selectedFile.size)})
-                    </span>
-                  ) : (
-                    <span className="upload-file-meta">Max storlek: {formatFileSize(MAX_FILE_SIZE_BYTES)}</span>
-                  )}
-                </label>
-              </>
-            ) : (
-              <>
-                <label className="field-label" htmlFor="message">Ditt meddelande</label>
-                <textarea
-                  id="message"
-                  className="secret-input"
-                  placeholder="Ange ditt meddelande..."
-                  value={message}
-                  onChange={(event) => setMessage(event.target.value)}
-                  spellCheck={false}
-                  autoComplete="off"
-                />
-              </>
-            )}
-
-            <div className="options-row" role="radiogroup" aria-label="Radera automatiskt efter">
-              {TTL_OPTIONS.map((option) => (
-                <label key={option.value} className="option-pill">
-                  <input
-                    type="radio"
-                    name="ttl"
-                    checked={ttl === option.value}
-                    onChange={() => setTtl(option.value)}
-                  />
-                  <span>{option.label}</span>
-                </label>
-              ))}
-            </div>
-
-            <div className="benefits">
-              <div className="benefit"><CheckCircle2 size={20} color="#9be283" /> Endast en nedladdning</div>
-              <div className="benefit"><CheckCircle2 size={20} color="#9be283" /> Skapa dekrypteringsnyckel lokalt</div>
-            </div>
-
-            <button className="cta" onClick={handleEncrypt} disabled={loading}>
-              {mode === "file" ? <Upload size={18} /> : <LockKeyhole size={18} />}
-              {loading ? (mode === "file" ? "Laddar upp..." : "Krypterar...") : (mode === "file" ? "Ladda upp fil" : "Kryptera meddelande")}
-            </button>
-
-            <p className={`status ${statusType === "error" ? "error" : statusType === "success" ? "success" : ""}`}>{status}</p>
-          </article>
-
-          {result ? (
+        {result ? (
+          <section className="hero-grid hero-grid-result">
             <article className="result-card">
               <h1>Meddelandet sparat</h1>
               <p>{mode === "file" ? "Din fil har krypterats och lagrats. Dela dessa länkar för att ge åtkomst." : "Ditt meddelande har krypterats och lagrats. Dela dessa länkar för att ge åtkomst."}</p>
@@ -376,18 +271,82 @@ export function HomePage() {
 
               <div className="result-footer">
                 <span className="result-note">Giltig till: {new Date(result.expiresAt).toLocaleString("sv-SE")}</span>
-                <div className="result-actions">
-                  <button className="secondary-btn" onClick={() => copyToClipboard(shareText, "Kort länk och nyckel är kopierade.")}>Kopiera kort länk + nyckel</button>
-                  <button className="secondary-btn" onClick={() => setShowQrCode(true)}>
-                    <QrCode size={16} />
-                    Visa QR-kod
-                  </button>
-                  <button className="outline-btn" onClick={resetForm}>Skapa ett nytt meddelande</button>
-                </div>
+                <button className="outline-btn result-reset-btn" onClick={resetForm}>Skapa ett nytt meddelande</button>
               </div>
             </article>
-          ) : null}
-        </section>
+          </section>
+        ) : (
+          <section className="hero-grid">
+            <article className="hero-card">
+              <h1>{mode === "file" ? "Ladda upp fil" : "Kryptera meddelande"}</h1>
+              {mode === "file" ? (
+                <>
+                  <label
+                    className="upload-dropzone"
+                    onDragOver={(event) => event.preventDefault()}
+                    onDrop={handleDrop}
+                  >
+                    <input
+                      ref={fileInputRef}
+                      className="file-input"
+                      type="file"
+                      onChange={handleFileChange}
+                    />
+                    <span className="upload-icon"><Upload size={38} /></span>
+                    <strong>Dra och släpp eller klicka för att välja en fil</strong>
+                    <span>Filuppladdning är utformad för små filer som nycklar, certifikat och dokument.</span>
+                    {selectedFile ? (
+                      <span className="upload-file-meta">
+                        Vald fil: {selectedFile.name} ({formatFileSize(selectedFile.size)})
+                      </span>
+                    ) : (
+                      <span className="upload-file-meta">Max storlek: {formatFileSize(MAX_FILE_SIZE_BYTES)}</span>
+                    )}
+                  </label>
+                </>
+              ) : (
+                <>
+                  <label className="field-label" htmlFor="message">Ditt meddelande</label>
+                  <textarea
+                    id="message"
+                    className="secret-input"
+                    placeholder="Ange ditt meddelande..."
+                    value={message}
+                    onChange={(event) => setMessage(event.target.value)}
+                    spellCheck={false}
+                    autoComplete="off"
+                  />
+                </>
+              )}
+
+              <div className="options-row" role="radiogroup" aria-label="Radera automatiskt efter">
+                {TTL_OPTIONS.map((option) => (
+                  <label key={option.value} className="option-pill">
+                    <input
+                      type="radio"
+                      name="ttl"
+                      checked={ttl === option.value}
+                      onChange={() => setTtl(option.value)}
+                    />
+                    <span>{option.label}</span>
+                  </label>
+                ))}
+              </div>
+
+              <div className="benefits">
+                <div className="benefit"><CheckCircle2 size={20} color="#9be283" /> Endast en nedladdning</div>
+                <div className="benefit"><CheckCircle2 size={20} color="#9be283" /> Skapa dekrypteringsnyckel lokalt</div>
+              </div>
+
+              <button className="cta" onClick={handleEncrypt} disabled={loading}>
+                {mode === "file" ? <Upload size={18} /> : <LockKeyhole size={18} />}
+                {loading ? (mode === "file" ? "Laddar upp..." : "Krypterar...") : (mode === "file" ? "Ladda upp fil" : "Kryptera meddelande")}
+              </button>
+
+              <p className={`status ${statusType === "error" ? "error" : statusType === "success" ? "success" : ""}`}>{status}</p>
+            </article>
+          </section>
+        )}
 
         <section className="hero-copy">
           {createdSecretCount !== null ? (
@@ -413,22 +372,6 @@ export function HomePage() {
           })}
         </section>
       </main>
-
-      {showQrCode && result ? (
-        <div className="modal-backdrop" onClick={() => setShowQrCode(false)}>
-          <div className="modal-card" onClick={(event) => event.stopPropagation()}>
-            <button className="modal-close" type="button" onClick={() => setShowQrCode(false)} aria-label="Stäng QR-kod">
-              <X size={18} />
-            </button>
-            <h2>QR-kod för direktlänk</h2>
-            <p>Skanna koden för att öppna meddelandet med inbyggd nyckel i samma steg.</p>
-            <div className="qr-preview">
-              {qrCodeDataUrl ? <img src={qrCodeDataUrl} alt="QR-kod för direktlänk" /> : <span>Skapar QR-kod...</span>}
-            </div>
-            <div className="qr-meta">{result.fullUrl}</div>
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }
