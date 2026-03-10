@@ -14,7 +14,10 @@ export default async function SecretPage({
         <div className="topbar-inner">
           <a className="brand" href="/">
             <span className="brand-mark"><LockKeyhole size={18} /></span>
-            <span>MessageEncrypt</span>
+            <span className="brand-copy">
+              <span className="brand-title">Keyburn</span>
+              <span className="brand-subtitle">MessageEncrypt</span>
+            </span>
           </a>
         </div>
       </header>

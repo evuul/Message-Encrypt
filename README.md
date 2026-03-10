@@ -1,6 +1,6 @@
-# Message-Encrypt
+# Keyburn
 
-Säker delning av engångsmeddelanden byggd med Next.js.
+Keyburn är en tjänst för säker delning av engångsmeddelanden byggd med Next.js.
 
 ## Funktioner
 

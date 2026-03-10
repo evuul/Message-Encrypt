@@ -40,7 +40,7 @@ const featureCards = [
   {
     icon: RefreshCcw,
     iconClass: "icon-orange",
-    title: "Stateless leverans",
+    title: "Ingen permanent lagring",
     text: "Servern lagrar bara krypterad text och engångstoken till dess att posten förbrukas."
   }
 ];
@@ -217,7 +217,10 @@ export function HomePage() {
         <div className="topbar-inner">
           <a className="brand" href="/">
             <span className="brand-mark"><LockKeyhole size={18} /></span>
-            <span>MessageEncrypt</span>
+            <span className="brand-copy">
+              <span className="brand-title">Keyburn</span>
+              <span className="brand-subtitle">MessageEncrypt</span>
+            </span>
           </a>
           <div className="top-actions">
             <button className={`top-action-btn ${mode === "file" ? "active" : ""}`} type="button" onClick={() => setMode("file")}>Ladda upp</button>

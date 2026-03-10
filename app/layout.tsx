@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "MessageEncrypt",
-  description: "Säker delning av krypterade engångsmeddelanden"
+  title: "Keyburn | MessageEncrypt",
+  description: "Keyburn gör det enkelt att dela krypterade engångsmeddelanden och filer."
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

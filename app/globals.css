@@ -50,8 +50,23 @@ button { cursor: pointer; }
   display: flex;
   align-items: center;
   gap: 12px;
+}
+.brand-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.brand-title {
   font-size: 1.7rem;
   font-weight: 800;
+  line-height: 1;
+}
+.brand-subtitle {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
 }
 .brand-mark {
   display: grid;
