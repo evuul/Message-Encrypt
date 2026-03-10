@@ -1,8 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Copy, Download, Eye, Info, LockKeyhole } from "lucide-react";
 import { decryptSecret } from "@/lib/crypto";
+
+type SealedSecretPayload = {
+  ciphertext: string;
+  iv: string;
+  salt: string;
+  createdAt: number;
+  expiresAt: number;
+};
 
 function readSecretPartsFromHash() {
   const hash = window.location.hash.replace(/^#/, "");
@@ -18,9 +26,11 @@ function readSecretPartsFromHash() {
 }
 
 export function ReadSecret({ id }: { id: string }) {
+  const cacheKey = `message-encrypt:sealed:${id}`;
   const [passphrase, setPassphrase] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [filePayload, setFilePayload] = useState<{ name: string; mimeType: string; size: number; data: string } | null>(null);
+  const [sealedSecret, setSealedSecret] = useState<SealedSecretPayload | null>(null);
   const [status, setStatus] = useState("");
   const [statusType, setStatusType] = useState<"idle" | "error" | "success">("idle");
   const [loading, setLoading] = useState(false);
@@ -58,6 +68,31 @@ export function ReadSecret({ id }: { id: string }) {
     return { kind: "legacy-text" as const, message: decrypted };
   }
 
+  useEffect(() => {
+    try {
+      const cached = window.sessionStorage.getItem(cacheKey);
+      if (!cached) return;
+
+      const parsed = JSON.parse(cached) as SealedSecretPayload;
+      if (
+        typeof parsed?.ciphertext === "string" &&
+        typeof parsed?.iv === "string" &&
+        typeof parsed?.salt === "string"
+      ) {
+        setSealedSecret(parsed);
+        setStatusType("idle");
+        setStatus("Det krypterade meddelandet finns sparat lokalt i den här fliken. Du kan försöka igen med rätt nyckel.");
+      }
+    } catch {
+      window.sessionStorage.removeItem(cacheKey);
+    }
+  }, [cacheKey]);
+
+  useEffect(() => {
+    if (!sealedSecret) return;
+    window.sessionStorage.setItem(cacheKey, JSON.stringify(sealedSecret));
+  }, [cacheKey, sealedSecret]);
+
   async function copyMessage() {
     if (!message) return;
 
@@ -93,18 +128,25 @@ export function ReadSecret({ id }: { id: string }) {
     setStatusType("idle");
 
     try {
-      const response = await fetch("/api/secret", {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-          "Cache-Control": "no-store"
-        },
-        body: JSON.stringify({ id, token: currentToken })
-      });
+      let payload = sealedSecret;
 
-      const payload = await response.json();
-      if (!response.ok) {
-        throw new Error(payload.error || "Länken kunde inte öppnas.");
+      if (!payload) {
+        const response = await fetch("/api/secret", {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+            "Cache-Control": "no-store"
+          },
+          body: JSON.stringify({ id, token: currentToken })
+        });
+
+        const responsePayload = await response.json();
+        if (!response.ok) {
+          throw new Error(responsePayload.error || "Länken kunde inte öppnas.");
+        }
+
+        payload = responsePayload as SealedSecretPayload;
+        setSealedSecret(payload);
       }
 
       const decrypted = await decryptSecret(payload, currentPassphrase);
@@ -117,13 +159,15 @@ export function ReadSecret({ id }: { id: string }) {
         setFilePayload(null);
       }
       setConsumed(true);
+      setSealedSecret(null);
+      window.sessionStorage.removeItem(cacheKey);
       setStatusType("success");
       setStatus(parsed.kind === "file" ? "Filen har dekrypterats. Länken är nu förbrukad." : "Meddelandet har dekrypterats. Länken är nu förbrukad.");
       window.history.replaceState(null, "", window.location.pathname);
     } catch (error) {
       setStatusType("error");
       if (error instanceof DOMException || (error instanceof Error && /operation|decrypt/i.test(`${error.name} ${error.message}`))) {
-        setStatus("Dekrypteringen misslyckades. Kontrollera att dekrypteringsnyckeln är korrekt. Av säkerhetsskäl kan meddelandet inte återställas efter ett öppningsförsök.");
+        setStatus("Dekrypteringen misslyckades. Kontrollera att dekrypteringsnyckeln är korrekt. Det krypterade innehållet finns sparat lokalt i den här fliken så att du kan försöka igen utan att förlora meddelandet.");
       } else {
         setStatus(error instanceof Error ? error.message : "Något gick fel.");
       }
@@ -146,7 +190,11 @@ export function ReadSecret({ id }: { id: string }) {
             <span className="read-headline-mark"><LockKeyhole size={22} /></span>
             <div>
               <h1>Säkert meddelande</h1>
-              <p>Du har fått ett säkert meddelande som bara kan ses en gång.</p>
+              <p>
+                {sealedSecret
+                  ? "Det här meddelandet har redan hämtats till den här fliken och kan nu dekrypteras lokalt."
+                  : "Du har fått ett säkert meddelande som bara kan ses en gång."}
+              </p>
             </div>
           </div>
 
@@ -155,8 +203,9 @@ export function ReadSecret({ id }: { id: string }) {
             <div>
               <div className="read-warning-title">Viktigt</div>
               <div className="read-warning-text">
-                Detta meddelande kommer att självförstöras efter visning. När det öppnats kan det inte ses igen.
-                Var säker på att du är redo att visa det nu.
+                {sealedSecret
+                  ? "Länken är redan förbrukad på servern, men den krypterade kopian finns kvar lokalt i den här fliken tills du dekrypterar eller lämnar sidan."
+                  : "Detta meddelande kommer att självförstöras efter visning. När det öppnats kan det inte ses igen. Var säker på att du är redo att visa det nu."}
               </div>
             </div>
           </div>
