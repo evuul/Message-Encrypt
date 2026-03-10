@@ -57,11 +57,33 @@ export function HomePage() {
   const [result, setResult] = useState<{ fullUrl: string; shortUrl: string; passphrase: string; expiresAt: number } | null>(null);
   const [showQrCode, setShowQrCode] = useState(false);
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState("");
+  const [createdSecretCount, setCreatedSecretCount] = useState<number | null>(null);
 
   const shareText = useMemo(() => {
     if (!result) return "";
     return `${result.shortUrl}\n\nDekrypteringsnyckel: ${result.passphrase}`;
   }, [result]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void fetch("/api/stats", {
+      headers: {
+        "Cache-Control": "no-store"
+      }
+    }).then(async (response) => {
+      if (!response.ok) return null;
+      return response.json() as Promise<{ createdSecretCount: number }>;
+    }).then((payload) => {
+      if (!cancelled && payload) {
+        setCreatedSecretCount(payload.createdSecretCount);
+      }
+    }).catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!showQrCode || !result?.fullUrl) {
@@ -178,6 +200,7 @@ export function HomePage() {
       const shortUrl = `${window.location.origin}/s/${payload.id}#${payload.token}`;
       const fullUrl = `${shortUrl}.${passphrase}`;
       setResult({ fullUrl, shortUrl, passphrase, expiresAt: payload.expiresAt });
+      setCreatedSecretCount((current) => (current === null ? current : current + 1));
       setStatusType("success");
       setStatus(mode === "file" ? "Filen är uppladdad och krypterad." : "Länken är skapad. Nyckeln finns bara hos mottagaren om du delar den.");
       setMessage("");
@@ -209,6 +232,14 @@ export function HomePage() {
       setStatusType("error");
       setStatus("Kunde inte kopiera automatiskt.");
     }
+  }
+
+  function formatCreatedSecretCount(value: number) {
+    if (value >= 10000) {
+      return `${Math.floor(value / 1000)}k+`;
+    }
+
+    return new Intl.NumberFormat("sv-SE").format(value);
   }
 
   return (
@@ -359,6 +390,9 @@ export function HomePage() {
         </section>
 
         <section className="hero-copy">
+          {createdSecretCount !== null ? (
+            <div className="stats-chip">{formatCreatedSecretCount(createdSecretCount)} krypterade meddelanden skapade</div>
+          ) : null}
           <h2>Dela meddelanden säkert med enkelhet</h2>
           <p>
             Meddelandet krypteras i din webbläsare innan det skickas. Servern får aldrig dekrypteringsnyckeln,

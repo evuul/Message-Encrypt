@@ -10,9 +10,11 @@ type StoredSecret = {
 };
 
 const localStore = new Map<string, StoredSecret>();
+let localCreatedSecretCount = 0;
 const ID_ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 const SECRET_ID_LENGTH = 10;
 const SECRET_TOKEN_LENGTH = 22;
+const CREATED_SECRET_COUNT_KEY = "stats:created-secret-count";
 
 function hashToken(token: string) {
   return createHash("sha256").update(token).digest("hex");
@@ -65,9 +67,11 @@ export async function createSecret(input: {
 
   if (redis) {
     await redis.set(key, record, { ex: input.ttlSeconds });
+    await redis.incr(CREATED_SECRET_COUNT_KEY);
   } else {
     cleanupExpired();
     localStore.set(key, record);
+    localCreatedSecretCount += 1;
   }
 
   return { id, token, expiresAt };
@@ -89,4 +93,14 @@ export async function consumeSecret(id: string, token: string) {
 
   localStore.delete(key);
   return record;
+}
+
+export async function getCreatedSecretCount() {
+  const redis = getRedis();
+
+  if (redis) {
+    return (await redis.get<number>(CREATED_SECRET_COUNT_KEY)) ?? 0;
+  }
+
+  return localCreatedSecretCount;
 }
