@@ -14,6 +14,13 @@ const ID_ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVW
 const SECRET_ID_LENGTH = 10;
 const SECRET_TOKEN_LENGTH = 22;
 
+export class StoreUnavailableError extends Error {
+  constructor() {
+    super("Säker serverlagring är inte tillgänglig just nu. Försök igen om en liten stund.");
+    this.name = "StoreUnavailableError";
+  }
+}
+
 function hashToken(token: string) {
   return createHash("sha256").update(token).digest("hex");
 }
@@ -42,6 +49,10 @@ function cleanupExpired() {
   }
 }
 
+function canUseLocalStoreFallback() {
+  return process.env.NODE_ENV !== "production";
+}
+
 export async function createSecret(input: {
   ciphertext: string;
   iv: string;
@@ -65,9 +76,11 @@ export async function createSecret(input: {
 
   if (redis) {
     await redis.set(key, record, { ex: input.ttlSeconds });
-  } else {
+  } else if (canUseLocalStoreFallback()) {
     cleanupExpired();
     localStore.set(key, record);
+  } else {
+    throw new StoreUnavailableError();
   }
 
   return { id, token, expiresAt };
@@ -79,6 +92,10 @@ export async function consumeSecret(id: string, token: string) {
 
   if (redis) {
     return await redis.getdel<StoredSecret>(key);
+  }
+
+  if (!canUseLocalStoreFallback()) {
+    throw new StoreUnavailableError();
   }
 
   cleanupExpired();

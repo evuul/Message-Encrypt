@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { MAX_CIPHERTEXT_LENGTH } from "@/lib/constants";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { createSecret, consumeSecret } from "@/lib/store";
+import { createSecret, consumeSecret, StoreUnavailableError } from "@/lib/store";
 
 const VALID_TTLS = new Set([3600, 86400, 604800]);
 const CREATE_LIMIT = 20;
@@ -49,22 +49,30 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Meddelandet är för stort eller tomt." }, { status: 400 });
   }
 
-  const result = await createSecret({
-    ciphertext: body.ciphertext,
-    iv: body.iv,
-    salt: body.salt,
-    ttlSeconds: body.ttlSeconds
-  });
+  try {
+    const result = await createSecret({
+      ciphertext: body.ciphertext,
+      iv: body.iv,
+      salt: body.salt,
+      ttlSeconds: body.ttlSeconds
+    });
 
-  return NextResponse.json({
-    id: result.id,
-    token: result.token,
-    expiresAt: result.expiresAt
-  }, {
-    headers: {
-      "Cache-Control": "no-store, max-age=0"
+    return NextResponse.json({
+      id: result.id,
+      token: result.token,
+      expiresAt: result.expiresAt
+    }, {
+      headers: {
+        "Cache-Control": "no-store, max-age=0"
+      }
+    });
+  } catch (error) {
+    if (error instanceof StoreUnavailableError) {
+      return NextResponse.json({ error: error.message }, { status: 503 });
     }
-  });
+
+    throw error;
+  }
 }
 
 export async function DELETE(request: NextRequest) {
@@ -88,17 +96,25 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: "Ogiltig payload." }, { status: 400 });
   }
 
-  const secret = await consumeSecret(body.id, body.token);
-  if (!secret) {
-    return NextResponse.json(
-      { error: "Länken finns inte längre. Den kan ha öppnats tidigare eller gått ut." },
-      { status: 404 }
-    );
-  }
-
-  return NextResponse.json(secret, {
-    headers: {
-      "Cache-Control": "no-store, max-age=0"
+  try {
+    const secret = await consumeSecret(body.id, body.token);
+    if (!secret) {
+      return NextResponse.json(
+        { error: "Länken finns inte längre. Den kan ha öppnats tidigare eller gått ut." },
+        { status: 404 }
+      );
     }
-  });
+
+    return NextResponse.json(secret, {
+      headers: {
+        "Cache-Control": "no-store, max-age=0"
+      }
+    });
+  } catch (error) {
+    if (error instanceof StoreUnavailableError) {
+      return NextResponse.json({ error: error.message }, { status: 503 });
+    }
+
+    throw error;
+  }
 }

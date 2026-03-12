@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, DragEvent, useEffect, useMemo, useRef, useState } from "react";
+import { ChangeEvent, DragEvent, useMemo, useRef, useState } from "react";
 import { CheckCircle2, Download, Link2, LockKeyhole, RefreshCcw, Shield, Trash2, Upload } from "lucide-react";
 import { MAX_FILE_SIZE_BYTES, TTL_OPTIONS } from "@/lib/constants";
 import { createPassphrase, encryptSecret } from "@/lib/crypto";
@@ -90,14 +90,36 @@ export function HomePage() {
     applyFile(event.dataTransfer.files?.[0] ?? null);
   }
 
+  async function fileToBase64(file: File) {
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+
+      reader.onload = () => {
+        const result = reader.result;
+        if (typeof result !== "string") {
+          reject(new Error("Kunde inte läsa filen."));
+          return;
+        }
+
+        const separatorIndex = result.indexOf(",");
+        resolve(separatorIndex === -1 ? result : result.slice(separatorIndex + 1));
+      };
+
+      reader.onerror = () => {
+        reject(new Error("Kunde inte läsa filen."));
+      };
+
+      reader.readAsDataURL(file);
+    });
+  }
+
   async function createEncryptedPayload(passphrase: string) {
     if (mode === "file") {
       if (!selectedFile) {
         throw new Error("Välj en fil innan du laddar upp.");
       }
 
-      const bytes = new Uint8Array(await selectedFile.arrayBuffer());
-      const base64Data = btoa(String.fromCharCode(...bytes));
+      const base64Data = await fileToBase64(selectedFile);
       return encryptSecret(JSON.stringify({
         kind: "file",
         name: selectedFile.name,
