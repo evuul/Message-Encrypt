@@ -1,5 +1,5 @@
-import { LockKeyhole } from "lucide-react";
 import { ReadSecret } from "@/components/read-secret";
+import { SiteHeader } from "@/components/site-header";
 
 export default async function SecretPage({
   params
@@ -10,17 +10,7 @@ export default async function SecretPage({
 
   return (
     <div className="page-shell">
-      <header className="topbar">
-        <div className="topbar-inner">
-          <a className="brand" href="/">
-            <span className="brand-mark"><LockKeyhole size={18} /></span>
-            <span className="brand-copy">
-              <span className="brand-title">Keyburn</span>
-              <span className="brand-subtitle">MessageEncrypt</span>
-            </span>
-          </a>
-        </div>
-      </header>
+      <SiteHeader />
       <main className="read-shell">
         <ReadSecret id={id} />
       </main>

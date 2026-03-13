@@ -93,6 +93,28 @@ button { cursor: pointer; }
 .top-action-btn.active {
   color: var(--text);
 }
+.lang-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(22, 31, 44, 0.58);
+  border: 1px solid rgba(140, 160, 187, 0.16);
+}
+.lang-btn {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+.lang-btn.active {
+  background: rgba(155, 226, 131, 0.16);
+  color: var(--text);
+}
 .main-column { padding: 28px 0 64px; }
 .hero-card, .info-card, .result-card {
   background: linear-gradient(180deg, rgba(41, 53, 75, 0.94), rgba(34, 45, 63, 0.97));
