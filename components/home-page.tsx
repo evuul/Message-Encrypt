@@ -18,6 +18,7 @@ const homeCopy: Record<SiteLanguage, {
   maxSize: string;
   oneDownload: string;
   localKey: string;
+  ttlOptions: Array<{ label: string; value: number }>;
   uploading: string;
   encrypting: string;
   uploadFile: string;
@@ -59,6 +60,11 @@ const homeCopy: Record<SiteLanguage, {
     maxSize: "Max storlek",
     oneDownload: "Endast en nedladdning",
     localKey: "Skapa dekrypteringsnyckel lokalt",
+    ttlOptions: [
+      { label: "En timme", value: 3600 },
+      { label: "En dag", value: 86400 },
+      { label: "En vecka", value: 604800 }
+    ],
     uploading: "Laddar upp...",
     encrypting: "Krypterar...",
     uploadFile: "Ladda upp fil",
@@ -100,6 +106,11 @@ const homeCopy: Record<SiteLanguage, {
     maxSize: "Max size",
     oneDownload: "Single download only",
     localKey: "Create decryption key locally",
+    ttlOptions: [
+      { label: "One hour", value: 3600 },
+      { label: "One day", value: 86400 },
+      { label: "One week", value: 604800 }
+    ],
     uploading: "Uploading...",
     encrypting: "Encrypting...",
     uploadFile: "Upload file",
@@ -464,7 +475,7 @@ export function HomePage() {
               )}
 
               <div className="options-row" role="radiogroup" aria-label="Radera automatiskt efter">
-                {TTL_OPTIONS.map((option) => (
+                {copy.ttlOptions.map((option) => (
                   <label key={option.value} className="option-pill">
                     <input
                       type="radio"
