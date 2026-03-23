@@ -228,6 +228,13 @@ button { cursor: pointer; }
 .status { min-height: 28px; margin: 14px 0 0; }
 .status.error { color: #ffb1a8; }
 .status.success { color: #b7ec9a; }
+.result-status {
+  margin-top: 18px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(23, 31, 44, 0.56);
+  border: 1px solid rgba(142, 167, 199, 0.12);
+}
 .result-card { max-width: 820px; margin: 48px auto 0; }
 .result-stack { display: grid; gap: 24px; margin: 28px 0; }
 .notice-banner {

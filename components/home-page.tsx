@@ -346,8 +346,8 @@ export function HomePage() {
       const shortUrl = `${window.location.origin}/s/${payload.id}#${payload.token}`;
       const fullUrl = `${shortUrl}.${passphrase}`;
       setResult({ fullUrl, shortUrl, passphrase, expiresAt: payload.expiresAt });
-      setStatusType("success");
-      setStatus(mode === "file" ? copy.fileUploaded : copy.linkCreated);
+      setStatusType("idle");
+      setStatus("");
       setMessage("");
       setSelectedFile(null);
     } catch (error) {
@@ -394,6 +394,10 @@ export function HomePage() {
                   {copy.rememberText}
                 </div>
               </div>
+
+              {status ? (
+                <p className={`status result-status ${statusType === "error" ? "error" : statusType === "success" ? "success" : ""}`}>{status}</p>
+              ) : null}
 
               <div className="result-stack">
                 <section className="share-card">
